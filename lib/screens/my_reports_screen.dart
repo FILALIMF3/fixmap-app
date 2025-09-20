@@ -1,5 +1,4 @@
-// lib/screens/my_reports_screen.dart
-
+import 'package:fixmap_app/utils/app_theme.dart';
 import 'package:flutter/material.dart';
 import '../api/api_service.dart';
 
@@ -20,54 +19,112 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
     _reportsFuture = _apiService.getMyReports();
   }
 
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'resolved':
+        return AppTheme.secondaryColor; // Green
+      case 'in review':
+        return Colors.orangeAccent;
+      case 'submitted':
+      default:
+        return AppTheme.primaryColor; // Red
+    }
+  }
+
+  IconData _getStatusIcon(String status) {
+    switch (status.toLowerCase()) {
+      case 'resolved':
+        return Icons.check_circle_outline;
+      case 'in review':
+        return Icons.hourglass_bottom_outlined;
+      case 'submitted':
+      default:
+        return Icons.arrow_circle_up_outlined;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mes Rapports'),
-        backgroundColor: Colors.teal,
+        title: const Text('My Reports'),
       ),
       body: FutureBuilder<List<dynamic>>(
         future: _reportsFuture,
         builder: (context, snapshot) {
-          // --- Cas 1: Chargement ---
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          // --- Cas 2: Erreur ---
           if (snapshot.hasError) {
-            return Center(child: Text('Erreur: ${snapshot.error}'));
+            return Center(child: Text('Error: ${snapshot.error}'));
           }
-          // --- Cas 3: Succès ---
-          if (snapshot.hasData) {
-            final reports = snapshot.data!;
-            if (reports.isEmpty) {
-              return const Center(
-                child: Text(
-                  'Vous n\'avez encore soumis aucun rapport.',
-                  style: TextStyle(fontSize: 18, color: Colors.grey),
-                ),
-              );
-            }
-            // Affiche la liste des rapports
-            return ListView.builder(
-              itemCount: reports.length,
-              itemBuilder: (context, index) {
-                final report = reports[index];
-                return ListTile(
-                  leading: const Icon(Icons.location_pin, color: Colors.teal),
-                  title: Text('Rapport du ${report['created_at']}'), // Simplifié pour l'exemple
-                  subtitle: Text('Status: ${report['status']}'),
-                  trailing: Icon(
-                    report['status'] == 'Resolved' ? Icons.check_circle : Icons.hourglass_top,
-                    color: report['status'] == 'Resolved' ? Colors.green : Colors.orange,
-                  ),
-                );
-              },
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return const Center(
+              child: Text(
+                'You have not submitted any reports yet.',
+                style: TextStyle(fontSize: 18, color: Colors.grey),
+              ),
             );
           }
-          // Cas par défaut
-          return const Center(child: Text('Aucune donnée à afficher.'));
+
+          final reports = snapshot.data!;
+          return ListView.builder(
+            padding: const EdgeInsets.all(16.0),
+            itemCount: reports.length,
+            itemBuilder: (context, index) {
+              final report = reports[index];
+              return Card(
+                margin: const EdgeInsets.only(bottom: 16.0),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8.0),
+                        child: Image.network(
+                          report['image_url'],
+                          height: 150,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              Container(
+                            height: 150,
+                            color: Colors.grey[200],
+                            child: const Icon(Icons.image_not_supported,
+                                color: Colors.grey, size: 50),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12.0),
+                      Text(
+                        'Report #${report['id']}', // Example title
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8.0),
+                      Row(
+                        children: [
+                          Icon(
+                            _getStatusIcon(report['status']),
+                            color: _getStatusColor(report['status']),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8.0),
+                          Text(
+                            report['status'],
+                            style: TextStyle(
+                              color: _getStatusColor(report['status']),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
         },
       ),
     );

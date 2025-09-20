@@ -1,18 +1,11 @@
-// lib/screens/home_screen.dart
-
 import 'dart:async';
-import 'dart:typed_data';
-import 'package:fixmap_app/widgets/photo_marker.dart';
-import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:camera/camera.dart';
-import 'package:custom_map_markers/custom_map_markers.dart';
-import 'package:http/http.dart' as http;
-import 'report_screen.dart';
-import '../api/api_service.dart';
-import 'login_screen.dart';
-import 'my_reports_screen.dart';
+import 'package:fixmap_app/api/api_service.dart';
+import 'package:fixmap_app/screens/my_reports_screen.dart';
+import 'package:fixmap_app/screens/new_report/report_flow.dart';
+import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,7 +18,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final Completer<GoogleMapController> _mapController = Completer();
   final ApiService _apiService = ApiService();
   Position? _currentPosition;
-  List<MarkerData> _customMarkers = [];
+  Set<Marker> _markers = {};
   bool _isLoadingMarkers = true;
 
   static const CameraPosition _initialPosition = CameraPosition(
@@ -45,41 +38,31 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _fetchPublicReports() async {
-    if (mounted) setState(() { _isLoadingMarkers = true; });
+    if (mounted) setState(() => _isLoadingMarkers = true);
     try {
       final reports = await _apiService.getAllPublicReports();
-      final List<MarkerData> markers = [];
-      
+      final Set<Marker> markers = {};
       for (var report in reports) {
-        // 1. Download the image from the URL
-        final http.Response response = await http.get(Uri.parse(report['image_url']));
-        final Uint8List imageData = response.bodyBytes;
-
-        // 2. Create the marker only after the download is complete
         markers.add(
-          MarkerData(
-            marker: Marker(
-              markerId: MarkerId(report['id'].toString()),
-              position: LatLng(
-                double.parse(report['latitude'].toString()),
-                double.parse(report['longitude'].toString()),
-              ),
+          Marker(
+            markerId: MarkerId(report['id'].toString()),
+            position: LatLng(
+              double.parse(report['latitude'].toString()),
+              double.parse(report['longitude'].toString()),
             ),
-            // 3. Pass the downloaded image data to our widget
-            child: PhotoMarker(imageData: imageData),
+            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
           ),
         );
       }
-
       if (mounted) {
         setState(() {
-          _customMarkers = markers;
+          _markers = markers;
           _isLoadingMarkers = false;
         });
       }
     } catch (e) {
       print('Failed to fetch public reports: $e');
-      if (mounted) setState(() { _isLoadingMarkers = false; });
+      if (mounted) setState(() => _isLoadingMarkers = false);
     }
   }
 
@@ -121,135 +104,120 @@ class _HomeScreenState extends State<HomeScreen> {
       ));
     }
   }
-  
+
   void _onReportButtonPressed() async {
     if (_currentPosition == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Getting your location... Please wait.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Getting your location...')));
       await _determinePosition();
       return;
     }
-    
     final cameras = await availableCameras();
-    if (cameras.isEmpty) {
-       if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No camera found on this device.')));
+    if (cameras.isEmpty && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No camera found.')));
       return;
     }
-
-    if(mounted) {
+    if (mounted) {
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (context) => ReportScreen(
-            cameras: cameras,
-            location: _currentPosition!,
-          ),
+          builder: (context) =>
+              ReportFlow(cameras: cameras, location: _currentPosition!),
         ),
       );
     }
   }
 
-  void _logout() async {
-    await _apiService.logout();
-    if (mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-        (Route<dynamic> route) => false,
-      );
-    }
+  void _goToMyReports() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (context) => const MyReportsScreen()),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('FixMap'),
-        backgroundColor: Colors.teal,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.list_alt),
-            tooltip: 'My Reports',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (context) => const MyReportsScreen()),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Logout',
-            onPressed: _logout,
-          ),
-        ],
-      ),
       body: Stack(
         children: [
-          CustomGoogleMapMarkerBuilder(
-            customMarkers: _customMarkers,
-            builder: (BuildContext context, Set<Marker>? markers) {
-              return GoogleMap(
-                mapType: MapType.normal,
-                initialCameraPosition: _initialPosition,
-                myLocationEnabled: true,
-                myLocationButtonEnabled: false,
-                zoomControlsEnabled: false,
-                markers: markers ?? {},
-                onMapCreated: (GoogleMapController controller) {
-                  _mapController.complete(controller);
-                },
-              );
+          GoogleMap(
+            initialCameraPosition: _initialPosition,
+            onMapCreated: (GoogleMapController controller) {
+              _mapController.complete(controller);
             },
+            myLocationEnabled: true,
+            myLocationButtonEnabled: false,
+            zoomControlsEnabled: false,
+            markers: _markers,
           ),
-          Positioned(
-            top: 10,
-            right: 15,
-            left: 15,
-            child: Container(
-              height: 50,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: const Row(
-                children: [
-                  Padding(
-                    padding: EdgeInsets.only(left: 10),
-                    child: Icon(Icons.search, color: Colors.grey),
-                  ),
-                  Expanded(
-                    child: TextField(
-                      decoration: InputDecoration(
-                        hintText: 'Rechercher un lieu...',
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.only(left: 15, bottom: 11),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          _buildTopBar(),
+          _buildBottomBar(),
           if (_isLoadingMarkers)
             Container(
-              color: Colors.black.withOpacity(0.3),
-              child: const Center(
-                child: CircularProgressIndicator(),
-              ),
+              color: Colors.black.withOpacity(0.5),
+              child: const Center(child: CircularProgressIndicator()),
             ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _onReportButtonPressed,
-        label: const Text('Signaler'),
-        icon: const Icon(Icons.add_a_photo_outlined),
-        backgroundColor: Colors.teal,
+    );
+  }
+
+  Widget _buildTopBar() {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16.0),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('FixMap', style: Theme.of(context).textTheme.headlineSmall),
+              IconButton(
+                icon: const Icon(Icons.list_alt_outlined),
+                onPressed: _goToMyReports,
+              ),
+            ],
+          ),
+        ),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+    );
+  }
+
+  Widget _buildBottomBar() {
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ElevatedButton.icon(
+              icon: const Icon(Icons.add_location_alt_outlined, color: Colors.white),
+              label: const Text('Create a New Report'),
+              onPressed: _onReportButtonPressed,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16.0),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
