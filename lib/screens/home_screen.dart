@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'package:camera/camera.dart';
-import 'package:fixmap_app/api/api_service.dart';
-import 'package:fixmap_app/screens/my_reports_screen.dart';
-import 'package:fixmap_app/screens/new_report/report_flow.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../api/api_service.dart';
+import 'my_reports_screen.dart';
+import 'new_report/report_flow.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -211,7 +211,7 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: const Icon(Icons.add_location_alt_outlined, color: Colors.white),
               label: const Text('Create a New Report'),
               onPressed: _onReportButtonPressed,
-              style: ElevatedButton.styleFrom(
+              style: ElevatedButton.stylefrom(
                 padding: const EdgeInsets.symmetric(vertical: 16.0),
               ),
             ),

@@ -1,13 +1,12 @@
 import 'dart:io';
-
 import 'package:camera/camera.dart';
-import 'package:fixmap_app/api/api_service.dart';
-import 'package:fixmap_app/screens/new_report/add_details_screen.dart';
-import 'package:fixmap_app/screens/new_report/confirm_location_screen.dart';
-import 'package:fixmap_app/screens/new_report/take_photo_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../../api/api_service.dart';
+import 'add_details_screen.dart';
+import 'confirm_location_screen.dart';
+import 'take_photo_screen.dart';
 
 class ReportFlow extends StatefulWidget {
   final List<CameraDescription> cameras;
